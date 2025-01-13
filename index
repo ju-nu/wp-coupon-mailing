@@ -1,0 +1,36 @@
+wp-coupon-mailing/
+├── .env.example
+├── README.md
+├── schema.sql
+├── src
+│   ├── Config.php
+│   ├── Database.php
+│   ├── Mailer.php
+│   ├── ReCaptcha.php
+│   ├── Helpers.php
+│   └── Auth.php
+├── public
+│   ├── subscribe.php
+│   ├── confirm.php
+│   ├── unsubscribe.php
+│   ├── admin
+│   │   ├── index.php
+│   │   ├── login.php
+│   │   ├── logout.php
+│   │   └── manage.php
+│   ├── templates
+│   │   ├── subscription_form.html
+│   │   ├── confirm_success.html
+│   │   ├── unsubscribe_success.html
+│   │   ├── double_optin_email.html
+│   │   ├── brand_update_email.html
+│   │   └── admin_layout.html
+│   └── js
+│       └── subscribe.js
+├── scripts
+│   ├── queue_coupons.php
+│   ├── send_coupons.php
+│   └── common.php
+└── supervisor
+    ├── newsletter-queue.conf
+    └── newsletter-send.conf

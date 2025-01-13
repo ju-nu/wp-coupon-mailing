@@ -1,0 +1,25 @@
+# .gitignore
+
+# Ignore .env so we don't commit secrets
+.env
+.env.local
+.env.*.local
+
+# Ignore vendor folder (dependencies)
+vendor/
+
+# Ignore Composer lock if you prefer not to commit it
+# (some teams do commit it, so pick your preference)
+composer.lock
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# IDE/project files
+.idea/
+.vscode/
+.git/

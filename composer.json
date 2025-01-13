@@ -1,0 +1,13 @@
+{
+  "name": "ju-nu/wp-coupon-mailing",
+  "description": "Standalone brand-based newsletter system for WordPress coupons",
+  "require": {
+    "php": "^8.3",
+    "phpmailer/phpmailer": "^6.8"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  }
+}
