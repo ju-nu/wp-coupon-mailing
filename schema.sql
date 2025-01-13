@@ -13,10 +13,15 @@ CREATE TABLE IF NOT EXISTS newsletter_subscriptions (
   UNIQUE KEY unique_subscription (email, brand_slug)
 );
 
--- Optional coupon queue table for daily updates
+-- For daily queued coupons
 CREATE TABLE IF NOT EXISTS newsletter_coupon_queue (
   id INT AUTO_INCREMENT PRIMARY KEY,
   brand_slug VARCHAR(255) NOT NULL,
   coupon_id INT NOT NULL,
   created_at DATETIME NOT NULL
 );
+
+-- Recommended indexes for performance
+CREATE INDEX idx_email_brand ON newsletter_subscriptions (email, brand_slug);
+CREATE INDEX idx_brand_status ON newsletter_subscriptions (brand_slug, status);
+CREATE INDEX idx_created_at ON newsletter_subscriptions (created_at);

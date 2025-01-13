@@ -8,18 +8,14 @@
 # Ignore vendor folder (dependencies)
 vendor/
 
-# Ignore Composer lock if you prefer not to commit it
-# (some teams do commit it, so pick your preference)
-composer.lock
-
-# OS-generated files
+# OS / IDE
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
 
 # Logs
 *.log
 
-# IDE/project files
-.idea/
-.vscode/
-.git/
+# (Optionally) composer.lock if you don't want to commit
+composer.lock

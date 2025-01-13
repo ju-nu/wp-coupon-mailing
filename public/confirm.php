@@ -25,10 +25,11 @@ if (!$subscription) {
 }
 
 if ($subscription['status'] !== 'pending') {
-    echo "Du hast bereits bestätigt.";
+    echo "Du hast bereits bestätigt oder bist schon aktiv.";
     exit;
 }
 
+// Activate
 $updateSql = "UPDATE newsletter_subscriptions
               SET status='active', confirmed_at = :cat
               WHERE id=:id";

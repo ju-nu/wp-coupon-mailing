@@ -1,7 +1,5 @@
 <?php
 
-// scripts/queue_coupons.php
-
 use App\Config;
 use App\Database;
 
@@ -11,7 +9,7 @@ Config::init();
 
 $pdo = Database::connect();
 
-// Example: check last 24 hours
+// Check last 24 hours
 $lastCheck = date('Y-m-d H:i:s', strtotime('-1 day'));
 
 $sql = "
@@ -34,8 +32,10 @@ if (!$newCoupons) {
     exit;
 }
 
-$insertSql = "INSERT INTO newsletter_coupon_queue (brand_slug, coupon_id, created_at)
-              VALUES (:brand, :cid, :cat)";
+$insertSql = "
+INSERT INTO newsletter_coupon_queue (brand_slug, coupon_id, created_at)
+VALUES (:brand, :cid, :cat)
+";
 $insertStmt = $pdo->prepare($insertSql);
 
 foreach ($newCoupons as $coupon) {

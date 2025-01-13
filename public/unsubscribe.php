@@ -28,8 +28,7 @@ if (!$subscription) {
 $sqlCount = "SELECT COUNT(*) as total FROM newsletter_subscriptions WHERE email = :email AND status='active'";
 $cStmt = $pdo->prepare($sqlCount);
 $cStmt->execute([':email' => $subscription['email']]);
-$countRow = $cStmt->fetch();
-$totalActive = (int)$countRow['total'];
+$totalActive = (int)$cStmt->fetchColumn();
 
 if ($totalActive <= 1) {
     // Remove entire email

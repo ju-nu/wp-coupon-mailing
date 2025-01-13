@@ -29,7 +29,7 @@ if (!ReCaptcha::verify($recaptchaToken)) {
 
 try {
     $pdo = Database::connect();
-    // Look for ANY existing record for this brand/email
+    // Check if there's already a row for this email+brand
     $checkSql = "SELECT id, status FROM newsletter_subscriptions 
                  WHERE email = :email AND brand_slug = :brand 
                  LIMIT 1";
@@ -39,25 +39,22 @@ try {
 
     if ($existing) {
         if ($existing['status'] === 'active') {
-            echo json_encode([
-                'success' => false,
-                'message' => 'Du bist bereits für diesen Brand angemeldet.'
-            ]);
+            echo json_encode(['success' => false, 'message' => 'Du bist bereits für diesen Brand angemeldet.']);
             exit;
         } elseif ($existing['status'] === 'pending') {
             echo json_encode([
                 'success' => false,
-                'message' => 'Deine Anmeldung für diesen Brand wird bereits bestätigt. Sieh bitte in deinem E-Mail-Postfach nach.'
+                'message' => 'Diese Adresse wartet noch auf Bestätigung. Bitte prüfe dein E-Mail-Postfach.'
             ]);
             exit;
         }
-        // If, for some reason, status is something else, we can also handle it
+        // If needed, you could handle other statuses
     }
 
-    // Insert new or re-insert pending
-    $confirmToken = Helpers::generateToken(16);
+    // Insert as pending
+    $confirmToken     = Helpers::generateToken(16);
     $unsubscribeToken = Helpers::generateToken(16);
-    $createdAt = date('Y-m-d H:i:s');
+    $createdAt        = date('Y-m-d H:i:s');
 
     $insertSql = "INSERT INTO newsletter_subscriptions
                   (email, brand_slug, status, confirm_token, unsubscribe_token, created_at)
@@ -71,17 +68,24 @@ try {
         ':cat' => $createdAt
     ]);
 
-    // Double opt-in email
+    // Send double opt-in email
     $confirmLink = "https://{$_SERVER['HTTP_HOST']}/confirm.php?token={$confirmToken}";
-    $templatePath = __DIR__ . '/templates/double_optin_email.html';
-    $body = file_get_contents($templatePath);
+    $body = file_get_contents(__DIR__ . '/templates/double_optin_email.html');
     $body = str_replace('{{confirm_link}}', $confirmLink, $body);
     $body = str_replace('{{brand_slug}}', htmlspecialchars($brandSlug), $body);
 
     $subject = "Bitte bestätige dein Abonnement für {$brandSlug}";
-    Mailer::sendMail($email, $subject, $body);
+    $res = Mailer::sendMailBatch([[
+        'From'     => Config::get('SMTP_FROM'),
+        'To'       => $email,
+        'Subject'  => $subject,
+        'HtmlBody' => $body
+    ]]);
 
-    echo json_encode(['success' => true, 'message' => 'Bitte bestätige deine Anmeldung über den Link in der E-Mail.']);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Bitte bestätige deine Anmeldung über den Link in der E-Mail.'
+    ]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Fehler beim Speichern.']);
 }
