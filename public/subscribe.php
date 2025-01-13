@@ -79,7 +79,8 @@ try {
         'From'     => Config::get('SMTP_FROM'),
         'To'       => $email,
         'Subject'  => $subject,
-        'HtmlBody' => $body
+        'HtmlBody' => $body,
+        'MessageStream' => 'broadcast'
     ]]);
 
     echo json_encode([
