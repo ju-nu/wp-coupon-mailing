@@ -24,3 +24,30 @@ This repository provides a **standalone (middleware) newsletter system** written
 1. **Clone the repo**  
    ```bash
    git clone https://github.com/ju-nu/wp-coupon-mailing.git
+   ```
+
+2. **Install dependencies**  
+   ```bash
+   cd wp-coupon-mailing
+   composer install
+   ```
+   Make sure you have `php-xml`, `php-mbstring`, etc. installed if needed.
+
+3. **Create `.env` from `.env.example`**
+   ```bash
+   cp .env.example .env
+   ```
+   - Fill in your **DB credentials** (matching WP DB or separate DB).
+   - Fill in **reCAPTCHA v3** keys.
+   - Fill in **Postmark** SMTP credentials.
+   - Provide an **ADMIN_USER** and a **ADMIN_PASS_HASH**.
+  
+4. **Database Tables**
+   - Run schema.sql against your DB:
+   ```bash
+   mysql -u root -p your_db < schema.sql
+   ```
+   - Adjust table names if needed.
+
+5. **Configure Nginx**
+6. 

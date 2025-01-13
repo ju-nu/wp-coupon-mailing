@@ -21,6 +21,7 @@ if (!$email || !$brandSlug) {
     exit;
 }
 
+// reCAPTCHA check
 if (!ReCaptcha::verify($recaptchaToken)) {
     echo json_encode(['success' => false, 'message' => 'reCAPTCHA fehlgeschlagen.']);
     exit;
@@ -28,48 +29,49 @@ if (!ReCaptcha::verify($recaptchaToken)) {
 
 try {
     $pdo = Database::connect();
-    $checkSql = "SELECT id, status FROM newsletter_subscriptions WHERE email = :email AND brand_slug = :brand";
+    // Look for ANY existing record for this brand/email
+    $checkSql = "SELECT id, status FROM newsletter_subscriptions 
+                 WHERE email = :email AND brand_slug = :brand 
+                 LIMIT 1";
     $stmt = $pdo->prepare($checkSql);
     $stmt->execute([':email' => $email, ':brand' => $brandSlug]);
     $existing = $stmt->fetch();
 
-    if ($existing && $existing['status'] === 'active') {
-        echo json_encode(['success' => true, 'message' => 'Du bist bereits für diesen Brand angemeldet.']);
-        exit;
+    if ($existing) {
+        if ($existing['status'] === 'active') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Du bist bereits für diesen Brand angemeldet.'
+            ]);
+            exit;
+        } elseif ($existing['status'] === 'pending') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Deine Anmeldung für diesen Brand wird bereits bestätigt. Sieh bitte in deinem E-Mail-Postfach nach.'
+            ]);
+            exit;
+        }
+        // If, for some reason, status is something else, we can also handle it
     }
 
+    // Insert new or re-insert pending
     $confirmToken = Helpers::generateToken(16);
     $unsubscribeToken = Helpers::generateToken(16);
     $createdAt = date('Y-m-d H:i:s');
 
-    if ($existing) {
-        // Update existing
-        $updateSql = "UPDATE newsletter_subscriptions
-                      SET status = 'pending', confirm_token = :ctoken, unsubscribe_token = :utoken, created_at = :cat, confirmed_at = NULL
-                      WHERE id = :id";
-        $upStmt = $pdo->prepare($updateSql);
-        $upStmt->execute([
-            ':ctoken' => $confirmToken,
-            ':utoken' => $unsubscribeToken,
-            ':cat' => $createdAt,
-            ':id' => $existing['id']
-        ]);
-    } else {
-        // Insert new
-        $insertSql = "INSERT INTO newsletter_subscriptions
-                      (email, brand_slug, status, confirm_token, unsubscribe_token, created_at)
-                      VALUES (:email, :brand, 'pending', :ctoken, :utoken, :cat)";
-        $inStmt = $pdo->prepare($insertSql);
-        $inStmt->execute([
-            ':email' => $email,
-            ':brand' => $brandSlug,
-            ':ctoken' => $confirmToken,
-            ':utoken' => $unsubscribeToken,
-            ':cat' => $createdAt
-        ]);
-    }
+    $insertSql = "INSERT INTO newsletter_subscriptions
+                  (email, brand_slug, status, confirm_token, unsubscribe_token, created_at)
+                  VALUES (:email, :brand, 'pending', :ctoken, :utoken, :cat)";
+    $inStmt = $pdo->prepare($insertSql);
+    $inStmt->execute([
+        ':email' => $email,
+        ':brand' => $brandSlug,
+        ':ctoken' => $confirmToken,
+        ':utoken' => $unsubscribeToken,
+        ':cat' => $createdAt
+    ]);
 
-    // Send double opt-in email
+    // Double opt-in email
     $confirmLink = "https://{$_SERVER['HTTP_HOST']}/confirm.php?token={$confirmToken}";
     $templatePath = __DIR__ . '/templates/double_optin_email.html';
     $body = file_get_contents($templatePath);
