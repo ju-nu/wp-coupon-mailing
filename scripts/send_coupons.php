@@ -107,10 +107,11 @@ foreach ($brandCoupons as $bc) {
             $body = str_replace('{{unsubscribe_link}}', $unsubscribeLink, $body);
 
             $batch[] = [
-                'From'     => Config::get('SMTP_FROM'),
+                'From'     => Config::get('POSTMARK_SENDER'),
                 'To'       => $sub['email'],
                 'Subject'  => $subject,
-                'HtmlBody' => $body
+                'HtmlBody' => $body,
+                'MessageStream' => Config::get('POSTMARK_CHANNEL_BROADCAST')
             ];
             $batchSize++;
 

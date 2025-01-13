@@ -76,11 +76,11 @@ try {
 
     $subject = "Bitte bestätige dein Abonnement für {$brandSlug}";
     $res = Mailer::sendMailBatch([[
-        'From'     => Config::get('SMTP_FROM'),
+        'From'     => Config::get('POSTMARK_SENDER'),
         'To'       => $email,
         'Subject'  => $subject,
         'HtmlBody' => $body,
-        'MessageStream' => 'broadcast'
+        'MessageStream' => Config::get('POSTMARK_CHANNEL_TRANSACTIONAL')
     ]]);
 
     echo json_encode([
