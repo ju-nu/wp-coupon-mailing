@@ -20,6 +20,9 @@ class Mailer
         $apiToken = Config::get('POSTMARK_SERVER_TOKEN'); 
         $apiUrl   = 'https://api.postmarkapp.com/email/batch';
 
+
+        $array = [$messages, $apiToken];
+        file_put_contents('test.json', json_encode($array));
         $ch = curl_init($apiUrl);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($messages));
