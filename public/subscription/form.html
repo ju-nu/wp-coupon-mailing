@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Newsletter Registrierung</title>
+</head>
+<body>
+  <h1>Newsletter Registrierung</h1>
+  <form id="newsletter-form" action="#" method="POST">
+    <input
+      type="email"
+      name="email"
+      id="email"
+      placeholder="E-Mail-Adresse"
+      required
+    />
+    <!-- Replace this with the correct brand slug (e.g. "adidas") -->
+    <input
+      type="hidden"
+      name="brand_slug"
+      id="brand_slug"
+      value="adidas"
+    />
+
+    <!-- Invisible reCAPTCHA v3 (site key is just an example) -->
+    <input type="hidden" id="g-recaptcha-response" name="g-recaptcha-response" />
+
+    <button type="submit">Jetzt abonnieren</button>
+  </form>
+
+  <div id="newsletter-result"></div>
+
+  <!-- Load reCAPTCHA (replace YOUR_RECAPTCHA_SITE_KEY with your actual key) -->
+  <script src="https://www.google.com/recaptcha/api.js?render=YOUR_RECAPTCHA_SITE_KEY"></script>
+
+  <!-- Load our custom JS for AJAX submission -->
+  <script src="subscribe.js"></script>
+</body>
+</html>
