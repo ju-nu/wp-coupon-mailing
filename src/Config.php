@@ -2,10 +2,16 @@
 
 namespace App;
 
+/**
+ * Reads from .env file into memory.
+ */
 class Config
 {
     private static array $env = [];
 
+    /**
+     * Initialize environment from .env
+     */
     public static function init(string $envFilePath = __DIR__ . '/../.env'): void
     {
         if (!file_exists($envFilePath)) {

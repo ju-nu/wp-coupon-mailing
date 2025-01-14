@@ -6,10 +6,10 @@ use PDO;
 use PDOException;
 
 /**
- * Handles the connection to the "newsletter" DB,
- * which stores newsletter_subscriptions, newsletter_coupon_queue, etc.
+ * Dedicated class for connecting to the WordPress DB.
+ * We read WordPress coupons/vouchers from here.
  */
-class Database
+class WPDatabase
 {
     private static ?PDO $pdo = null;
 
@@ -17,11 +17,11 @@ class Database
     {
         if (self::$pdo === null) {
             try {
-                $host = Config::get('DB_HOST');
-                $db   = Config::get('DB_NAME');
-                $user = Config::get('DB_USER');
-                $pass = Config::get('DB_PASS');
-                $charset = Config::get('DB_CHARSET', 'utf8mb4');
+                $host = Config::get('WP_DB_HOST');
+                $db   = Config::get('WP_DB_NAME');
+                $user = Config::get('WP_DB_USER');
+                $pass = Config::get('WP_DB_PASS');
+                $charset = Config::get('WP_DB_CHARSET', 'utf8mb4');
 
                 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
                 self::$pdo = new PDO($dsn, $user, $pass, [
@@ -29,7 +29,7 @@ class Database
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 ]);
             } catch (PDOException $e) {
-                throw new \Exception('Newsletter DB Connection Error: ' . $e->getMessage());
+                throw new \Exception('WordPress DB Connection Error: ' . $e->getMessage());
             }
         }
         return self::$pdo;

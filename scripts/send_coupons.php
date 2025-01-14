@@ -2,150 +2,129 @@
 
 use App\Config;
 use App\Database;
+use App\WPDatabase;
 use App\Mailer;
 use App\Helpers;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-Config::init();
-$pdo = Database::connect();
+/**
+ * This script runs at 10 AM:
+ *  - Reads all queued coupons from the newsletter DB
+ *  - Groups by brand
+ *  - Fetches each coupon's title from the WP DB
+ *  - Sends out brand-based emails
+ *  - Clears the queue
+ */
 
-// 1. Fetch queued coupons grouped by brand
+Config::init();
+
+// 1) Connect to the newsletter DB to get queued coupons
+$newsletterPdo = Database::connect();
+
 $sql = "
 SELECT brand_slug, GROUP_CONCAT(coupon_id) AS coupons
 FROM newsletter_coupon_queue
 GROUP BY brand_slug
 ";
-$stmt = $pdo->query($sql);
+$stmt = $newsletterPdo->query($sql);
 $brandCoupons = $stmt->fetchAll();
 
 if (!$brandCoupons) {
-    echo "No coupons in queue.\n";
+    echo "No coupons in the queue.\n";
     exit;
 }
 
-// Pre-load the brand update template
+// 2) Connect to WP DB for coupon titles
+$wpPdo = WPDatabase::connect();
+
 $bodyTemplate = file_get_contents(__DIR__ . '/../public/templates/brand_update_email.html');
 $subjectTpl   = Config::get('NEWSLETTER_SUBJECT_TEMPLATE');
 $now          = new \DateTime();
 $formattedDate = Helpers::formatGermanDate($now);
 
-// We'll chunk the subscriber queries to handle high volume.
-$chunkSize = 10_000;
-$batchMax  = 500;
-$sleepTime = 5; // seconds after each batch
-
 foreach ($brandCoupons as $bc) {
     $brandSlug = $bc['brand_slug'];
     $couponIds = explode(',', $bc['coupons']);
 
-    // Build coupon list
+    if (empty($couponIds)) {
+        continue;
+    }
+
+    // Build HTML for these coupons (get titles from WP)
     $couponListHtml = '';
     foreach ($couponIds as $cid) {
-        $wpSql = "SELECT post_title FROM wp_posts WHERE ID = :cid";
-        $wpStmt = $pdo->prepare($wpSql);
+        $wpSql = "SELECT post_title FROM wp_posts WHERE ID = :cid LIMIT 1";
+        $wpStmt = $wpPdo->prepare($wpSql);
         $wpStmt->execute([':cid' => $cid]);
         $row = $wpStmt->fetch();
+
         $title = $row ? $row['post_title'] : "Coupon #$cid";
         $link  = "https://{$_SERVER['HTTP_HOST']}/?post_type=coupon&p={$cid}";
         $couponListHtml .= "<li><a href=\"$link\">$title</a></li>";
     }
 
     $couponCount = count($couponIds);
-    if ($couponCount < 1) {
-        continue;
-    }
-
-    // Prepare subject
     $brandname = ucfirst($brandSlug);
+
+    // e.g. "Adidas: Jetzt 2 neue Gutscheine für 19. Januar 2025"
     $subject = str_replace(
         ['{brandname}', '{count}', '{day}. {month} {year}'],
         [$brandname, $couponCount, $formattedDate],
         $subjectTpl
     );
 
-    echo "Sending coupons for brand '{$brandSlug}'...\n";
+    // 3) Get brand subscribers from newsletter DB
+    $subSql = "SELECT email, unsubscribe_token FROM newsletter_subscriptions
+               WHERE brand_slug = :brand AND status='active'";
+    $subStmt = $newsletterPdo->prepare($subSql);
+    $subStmt->execute([':brand' => $brandSlug]);
+    $subscribers = $subStmt->fetchAll();
+    $numSubs = count($subscribers);
 
-    // We'll query subscribers in a loop with offset
-    $offset = 0;
-    $totalSent = 0;
+    if ($numSubs < 1) {
+        continue;
+    }
 
-    do {
-        $subSql = "
-            SELECT email, unsubscribe_token
-            FROM newsletter_subscriptions
-            WHERE brand_slug = :brand
-              AND status='active'
-            ORDER BY id
-            LIMIT :offset, :chunk
-        ";
-        $subStmt = $pdo->prepare($subSql);
-        $subStmt->bindValue(':brand', $brandSlug);
-        $subStmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
-        $subStmt->bindValue(':chunk', $chunkSize, \PDO::PARAM_INT);
-        $subStmt->execute();
-        $subscribers = $subStmt->fetchAll();
-        $countCurrent = count($subscribers);
+    echo "Sending coupons for brand '{$brandSlug}' to {$numSubs} subscribers...\n";
 
-        if ($countCurrent === 0) {
-            break;
-        }
+    // 4) Build batch array & send (example: up to 500 at a time)
+    $batch = [];
+    $batchSize = 0;
+    $batchMax = 500;
+    $sleepTime = 5; // seconds to sleep between batches
 
-        $offset += $chunkSize;
+    foreach ($subscribers as $sub) {
+        $unsubscribeLink = "https://{$_SERVER['HTTP_HOST']}/unsubscribe.php?token={$sub['unsubscribe_token']}";
 
-        // Now batch these subscribers
-        $batch = [];
-        $batchSize = 0;
+        $body = str_replace('{{brandname}}', htmlspecialchars($brandname), $bodyTemplate);
+        $body = str_replace('{{coupon_count}}', $couponCount, $body);
+        $body = str_replace('{{coupon_list}}', $couponListHtml, $body);
+        $body = str_replace('{{unsubscribe_link}}', $unsubscribeLink, $body);
 
-        foreach ($subscribers as $sub) {
-            $unsubscribeLink = "https://{$_SERVER['HTTP_HOST']}/unsubscribe.php?token={$sub['unsubscribe_token']}";
+        $batch[] = [
+            'From'     => Config::get('SMTP_FROM'),
+            'To'       => $sub['email'],
+            'Subject'  => $subject,
+            'HtmlBody' => $body,
+        ];
+        $batchSize++;
 
-            // Fill placeholders
-            $body = str_replace('{{brandname}}', htmlspecialchars($brandname), $bodyTemplate);
-            $body = str_replace('{{coupon_count}}', $couponCount, $body);
-            $body = str_replace('{{coupon_list}}', $couponListHtml, $body);
-            $body = str_replace('{{unsubscribe_link}}', $unsubscribeLink, $body);
-
-            $batch[] = [
-                'From'     => Config::get('POSTMARK_SENDER'),
-                'To'       => $sub['email'],
-                'Subject'  => $subject,
-                'HtmlBody' => $body,
-                'MessageStream' => Config::get('POSTMARK_CHANNEL_BROADCAST')
-            ];
-            $batchSize++;
-
-            // If we hit 500, send
-            if ($batchSize === $batchMax) {
-                $ok = Mailer::sendMailBatch($batch);
-                if (!$ok) {
-                    echo "Error sending batch for brand {$brandSlug}\n";
-                }
-                $totalSent += $batchSize;
-                $batch = [];
-                $batchSize = 0;
-                // Sleep to avoid rate-limit
-                sleep($sleepTime);
-            }
-        }
-
-        // Any remainder
-        if ($batchSize > 0) {
-            $ok = Mailer::sendMailBatch($batch);
-            if (!$ok) {
-                echo "Error sending final batch for brand {$brandSlug}\n";
-            }
-            $totalSent += $batchSize;
+        if ($batchSize === $batchMax) {
+            Mailer::sendMailBatch($batch);
             $batch = [];
             $batchSize = 0;
             sleep($sleepTime);
         }
+    }
 
-    } while ($countCurrent > 0);
-
-    echo "Finished sending brand '{$brandSlug}' to total {$totalSent} subscribers.\n";
+    // leftover
+    if ($batchSize > 0) {
+        Mailer::sendMailBatch($batch);
+        sleep($sleepTime);
+    }
 }
 
-// Clear the queue
-$pdo->query("TRUNCATE TABLE newsletter_coupon_queue");
-echo "Cleared coupon queue.\n";
+// 5) Clear the queue
+$newsletterPdo->query("TRUNCATE TABLE newsletter_coupon_queue");
+echo "Queue cleared.\n";
