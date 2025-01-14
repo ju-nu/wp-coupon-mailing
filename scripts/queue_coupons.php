@@ -59,7 +59,6 @@ if (!$initImport) {
     INNER JOIN wp_terms t ON tt.term_id = t.term_id
     WHERE $whereClause
     ";
-    var_dump($sql);
     $stmt = $wpPdo->prepare($sql);
     $stmt->execute();
 }
