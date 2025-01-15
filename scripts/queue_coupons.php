@@ -85,6 +85,7 @@ $insertStmt = $newsletterPdo->prepare($insertSql);
 
 $rowsInserted = 0;
 foreach ($newCoupons as $coupon) {
+    echo $coupon['brand_slug'];
     $insertStmt->execute([
         ':brand' => $coupon['brand_slug'],
         ':cid'   => $coupon['coupon_id'],
