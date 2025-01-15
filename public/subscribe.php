@@ -2,7 +2,6 @@
 
 use App\Config;
 use App\Database;
-use App\ReCaptcha;
 use App\Helpers;
 use App\Mailer;
 
@@ -12,26 +11,52 @@ Config::init();
 
 header('Content-Type: application/json; charset=UTF-8');
 
-$email = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
-$brandSlug = filter_input(INPUT_POST, 'brand_slug', FILTER_SANITIZE_STRING);
-$recaptchaToken = filter_input(INPUT_POST, 'g-recaptcha-response', FILTER_SANITIZE_STRING);
+$email      = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
+$brandSlug  = filter_input(INPUT_POST, 'brand_slug', FILTER_SANITIZE_STRING);
+$turnstile  = filter_input(INPUT_POST, 'cf-turnstile-response', FILTER_SANITIZE_STRING);
 
 if (!$email || !$brandSlug) {
     echo json_encode(['success' => false, 'message' => 'Ungültige Eingaben.']);
     exit;
 }
 
-// reCAPTCHA check
-if (!ReCaptcha::verify($recaptchaToken)) {
-    echo json_encode(['success' => false, 'message' => 'reCAPTCHA fehlgeschlagen.']);
+if (!$turnstile) {
+    echo json_encode(['success' => false, 'message' => 'Turnstile-Token fehlt.']);
+    exit;
+}
+
+$turnstileSecretKey = Config::get('TURNSTILE_SECRET_KEY');
+$verifyURL          = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+// Prepare POST data
+$postData = http_build_query([
+    'secret'   => $turnstileSecretKey,
+    'response' => $turnstile,
+    'remoteip' => $_SERVER['REMOTE_ADDR'] ?? null
+]);
+
+$options = [
+    'http' => [
+        'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
+        'method'  => 'POST',
+        'content' => $postData
+    ]
+];
+
+$context   = stream_context_create($options);
+$response  = file_get_contents($verifyURL, false, $context);
+$captcha   = json_decode($response, true);
+
+if (!$captcha || !$captcha['success']) {
+    echo json_encode(['success' => false, 'message' => 'Cloudflare Turnstile-Überprüfung fehlgeschlagen.']);
     exit;
 }
 
 try {
     $pdo = Database::connect();
     // Check if there's already a row for this email+brand
-    $checkSql = "SELECT id, status FROM newsletter_subscriptions 
-                 WHERE email = :email AND brand_slug = :brand 
+    $checkSql = "SELECT id, status FROM newsletter_subscriptions
+                 WHERE email = :email AND brand_slug = :brand
                  LIMIT 1";
     $stmt = $pdo->prepare($checkSql);
     $stmt->execute([':email' => $email, ':brand' => $brandSlug]);
@@ -48,10 +73,8 @@ try {
             ]);
             exit;
         }
-        // If needed, you could handle other statuses
     }
 
-    // Insert as pending
     $confirmToken     = Helpers::generateToken(16);
     $unsubscribeToken = Helpers::generateToken(16);
     $createdAt        = date('Y-m-d H:i:s');
@@ -61,25 +84,25 @@ try {
                   VALUES (:email, :brand, 'pending', :ctoken, :utoken, :cat)";
     $inStmt = $pdo->prepare($insertSql);
     $inStmt->execute([
-        ':email' => $email,
-        ':brand' => $brandSlug,
+        ':email'  => $email,
+        ':brand'  => $brandSlug,
         ':ctoken' => $confirmToken,
         ':utoken' => $unsubscribeToken,
-        ':cat' => $createdAt
+        ':cat'    => $createdAt
     ]);
 
     // Send double opt-in email
-    $confirmLink = "https://{$_SERVER['HTTP_HOST']}/confirm.php?token={$confirmToken}";
+    $confirmLink = "https://mailing.vorteilplus.de/confirm.php?token={$confirmToken}";
     $body = file_get_contents(__DIR__ . '/templates/double_optin_email.html');
     $body = str_replace('{{confirm_link}}', $confirmLink, $body);
     $body = str_replace('{{brand_slug}}', htmlspecialchars($brandSlug), $body);
 
     $subject = "Bitte bestätige dein Abonnement für {$brandSlug}";
-    $res = Mailer::sendMailBatch([[
-        'From'     => Config::get('POSTMARK_SENDER'),
-        'To'       => $email,
-        'Subject'  => $subject,
-        'HtmlBody' => $body,
+    Mailer::sendMailBatch([[
+        'From'          => Config::get('POSTMARK_SENDER'),
+        'To'            => $email,
+        'Subject'       => $subject,
+        'HtmlBody'      => $body,
         'MessageStream' => Config::get('POSTMARK_CHANNEL_TRANSACTIONAL')
     ]]);
 

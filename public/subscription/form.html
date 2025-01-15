@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Newsletter Registrierung</title>
+  <!-- Load Cloudflare Turnstile JS -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
   <h1>Newsletter Registrierung</h1>
+
   <form id="newsletter-form" action="#" method="POST">
     <input
       type="email"
@@ -22,16 +25,21 @@
       value="adidas"
     />
 
-    <!-- Invisible reCAPTCHA v3 (site key is just an example) -->
-    <input type="hidden" id="g-recaptcha-response" name="g-recaptcha-response" />
+    <!-- Hidden field to store the Turnstile token -->
+    <input type="hidden" id="cf-turnstile-response" name="cf-turnstile-response" />
+
+    <!-- Invisible Turnstile widget -->
+    <div
+      class="cf-challenge"
+      data-sitekey="YOUR_TURNSTILE_SITE_KEY"   <!-- <-- REPLACE -->
+      data-callback="onTurnstileSubmit"
+      data-size="invisible"
+    ></div>
 
     <button type="submit">Jetzt abonnieren</button>
   </form>
 
   <div id="newsletter-result"></div>
-
-  <!-- Load reCAPTCHA (replace YOUR_RECAPTCHA_SITE_KEY with your actual key) -->
-  <script src="https://www.google.com/recaptcha/api.js?render=YOUR_RECAPTCHA_SITE_KEY"></script>
 
   <!-- Load our custom JS for AJAX submission -->
   <script src="subscribe.js"></script>
