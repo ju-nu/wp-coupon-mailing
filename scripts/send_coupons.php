@@ -60,7 +60,7 @@ foreach ($brandCoupons as $bc) {
         $row = $wpStmt->fetch();
 
         $title = $row ? $row['post_title'] : "Coupon #$cid";
-        $link  = "https://{$_SERVER['HTTP_HOST']}/?post_type=coupon&p={$cid}";
+        $link  = "https://vorteilplus.de/?post_type=coupon&p={$cid}";
         $couponListHtml .= "<li><a href=\"$link\">$title</a></li>";
     }
 
@@ -95,7 +95,7 @@ foreach ($brandCoupons as $bc) {
     $sleepTime = 5; // seconds to sleep between batches
 
     foreach ($subscribers as $sub) {
-        $unsubscribeLink = "https://{$_SERVER['HTTP_HOST']}/unsubscribe.php?token={$sub['unsubscribe_token']}";
+        $unsubscribeLink = "https://vorteilplus.de/unsubscribe.php?token={$sub['unsubscribe_token']}";
 
         $body = str_replace('{{brandname}}', htmlspecialchars($brandname), $bodyTemplate);
         $body = str_replace('{{coupon_count}}', $couponCount, $body);
@@ -103,10 +103,11 @@ foreach ($brandCoupons as $bc) {
         $body = str_replace('{{unsubscribe_link}}', $unsubscribeLink, $body);
 
         $batch[] = [
-            'From'     => Config::get('SMTP_FROM'),
+            'From'     => Config::get('POSTMARK_SENDER'),
             'To'       => $sub['email'],
             'Subject'  => $subject,
             'HtmlBody' => $body,
+            'MessageStream' => Config::get('POSTMARK_CHANNEL_BROADCAST')
         ];
         $batchSize++;
 
